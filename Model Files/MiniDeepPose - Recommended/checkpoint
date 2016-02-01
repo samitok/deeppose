@@ -1,0 +1,2 @@
+model_checkpoint_path: "/home/sami/Desktop/LSP_data/TrainData/model.ckpt-319000"
+all_model_checkpoint_paths: "/home/sami/Desktop/LSP_data/TrainData/model.ckpt-319000"
