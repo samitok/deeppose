@@ -40,7 +40,7 @@ python TrainLSP.py
 ## To Follow Progress
 
 ```
-tensorboard --logdir=/path/to/log-directory   #path is '~/Desktop/LSP_data/' if LSPGlobals.py is unchanged
+tensorboard --logdir=/path/to/log-directory   #path is '~/Desktop/LSP_data/TrainData' if LSPGlobals.py is unchanged
 ```
 
 
