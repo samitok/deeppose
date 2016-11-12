@@ -1,7 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from LSPGlobals import FLAGS
 import GetLSPData
 import LSPModels
@@ -121,9 +117,9 @@ def train(trainSetFileNames, testSetFileNames):
                 print("No checkpoint found...")
                 
             
-            summary_writer = tf.train.SummaryWriter(FLAGS.train_dir, graph_def=sess.graph_def)
+            summary_writer = tf.train.SummaryWriter(FLAGS.train_dir, graph=sess.graph)
             
-            for step in xrange(stepinit, FLAGS.max_steps):
+            for step in range(stepinit, FLAGS.max_steps):
                 
                 start_time = time.time()
                 train_examplebatch, train_labelbatch = sess.run([trainSet_batch, trainLabel_batch])
