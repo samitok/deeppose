@@ -2,15 +2,14 @@ DeepPose
 ========
 
 NOTE: This is not official implementation. Original paper is [DeepPose: Human Pose Estimation via Deep Neural Networks](http://arxiv.org/abs/1312.4659).
-SECOND NOTE: This implementation was a project for my Pattern Recognition Course at [METU](http://www.metu.edu.tr/). Codes are in a very primitive level. But people might find them useful.
+SECOND NOTE: This implementation was a project for my Pattern Recognition Course at [METU](http://www.metu.edu.tr/). **Codes are in a very primitive level.** But people might find them useful.
 
 # Requirements
 - [TensorFlow](https://github.com/tensorflow/tensorflow) (Google's Neural Network Toolbox)
-- Python 2.7.x
+- Python 3.5.x
 - Numpy
 - SciPy.io (For loading .mat files)
 - PIL or Pillow
-- Six (Python 2 and 3 Compatibility Library) 
 
 
 # Important
