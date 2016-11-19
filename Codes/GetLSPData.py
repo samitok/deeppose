@@ -130,9 +130,9 @@ def write_to_tfrecords(image_paths, labels, name):
         label = scale_label(labels[index], or_height, or_width)
 
         features = tf.train.Features(feature={
-            'height': _int64_feature(FLAGS.input_size),
-            'width': _int64_feature(FLAGS.input_size),
-            'depth': _int64_feature(FLAGS.input_depth),
+            # 'height': _int64_feature(FLAGS.input_size),
+            # 'width': _int64_feature(FLAGS.input_size),
+            # 'depth': _int64_feature(FLAGS.input_depth),
             'label': _int64_feature_list(label.astype(int).tolist()),
             'image_raw': _bytes_feature(image_raw)})
 

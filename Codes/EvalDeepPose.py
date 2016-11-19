@@ -3,7 +3,7 @@ import LSPModels
 import tensorflow as tf
 import time
 from datetime import datetime
-from LSPDrawLines import drawPoseOnImage as draw
+from LSPDrawLines import draw_pose_on_image as draw
 import glob
 import math
 import numpy as np
@@ -32,7 +32,7 @@ def evalDeepPose(imagelist):
         input_images = tf.placeholder(tf.float32, shape=dataShape)
 
         # Build a Graph that computes the logits predictions from the inference model.
-        logits = LSPModels.inference(input_images, FLAGS.batch_size, keepProb=1)
+        logits = LSPModels.inference(input_images, FLAGS.batch_size, keep_prob=1)
         
         # Create a saver.
         saver = tf.train.Saver(tf.all_variables())

@@ -40,8 +40,8 @@ tf.app.flags.DEFINE_integer('eval_size', 1, """Batch size for eval""")
 tf.app.flags.DEFINE_integer('max_steps', 1000000, """Number of batches to run.""")
 tf.app.flags.DEFINE_integer('moving_average_decay', 0.9999, """The decay to use for the moving average""")
 tf.app.flags.DEFINE_integer('num_epochs_per_decay', 50000, """Epochs after which learning rate decays""")
-tf.app.flags.DEFINE_integer('learn_decay_factor', 0.9, """Learning rate decay factor""")
-tf.app.flags.DEFINE_integer('initial_learn_rate', 0.002, """Initial learning rate""")
+tf.app.flags.DEFINE_integer('learn_decay_factor', 1, """Learning rate decay factor""")
+tf.app.flags.DEFINE_integer('initial_learn_rate', 0.0015, """Initial learning rate""")
 tf.app.flags.DEFINE_integer('example_per_epoch', 128, """Number of Examples per Epoch for Train""")
 
 

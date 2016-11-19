@@ -22,6 +22,13 @@ def _activation_summary(x):
     tf.scalar_summary(tensor_name + '/sparsity', tf.nn.zero_fraction(x))
 
 
+def print_size(x, name=''):
+    if not name == '':
+        print(name + ': ' + str(x.get_shape()))
+    else:
+        print(x.get_shape())
+
+
 
 def _variable_with_weight_decay(name, shape, stddev, wd):
     """Helper to create an initialized Variable with weight decay.
@@ -40,14 +47,13 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
       Variable Tensor
     """
     var = tf.Variable(tf.random_normal(shape, stddev=stddev), name=name)
-    if wd:
+    '''if wd:
         weight_decay = tf.mul(tf.nn.l2_loss(var), wd, name='weight_loss')
-        tf.add_to_collection('losses', weight_decay)
+        tf.add_to_collection('losses', weight_decay)'''
     return var
 
 
-
-def inference(images, batch_size, keepProb=1):
+def inference(images, keep_prob=1):
     """    
     Args:
       images: Images returned from distorted_inputs() or inputs().
@@ -59,115 +65,98 @@ def inference(images, batch_size, keepProb=1):
     # tf.Variable() in order to share variables across multiple GPU training runs.
     # If we only ran this model on a single GPU, we could simplify this function
     # by replacing all instances of tf.get_variable() with tf.Variable().
-    #
+
     # conv1
     with tf.variable_scope('conv1') as scope:
-        kernel = tf.Variable(tf.random_normal([11, 11, 3, 20], stddev=1e-4), name='weights')
-        conv = tf.nn.conv2d(images, kernel, [1, 5, 5, 1], padding='SAME')
-        biases = tf.Variable(tf.constant(0.0, dtype=tf.float32, shape=[20]), name='biases')
-        
-        bias = tf.nn.bias_add(conv, biases)
-        conv1 = tf.nn.relu(bias, name=scope.name)
+        kernel = tf.Variable(tf.random_normal([11, 11, 3, 96], stddev=1e-4), name='weights')
+        conv1 = tf.nn.conv2d(images, kernel, [1, 4, 4, 1], padding='SAME', name=scope.name)
         _activation_summary(conv1)
-    
-    # norm1
-    norm1 = tf.nn.lrn(conv1, name='lrn1')
-    
+    print('Printing DeepPose network')
+    print_size(conv1, name='conv1')
+
+    # lrn1
+    lrn1 = tf.nn.lrn(conv1, name='lrn1')
+    print_size(lrn1, name='lrn1')
     
     # pool1
-    pool1 = tf.nn.max_pool(norm1, ksize=[1, 3, 3, 1], strides=[1, 3, 3, 1],
-                           padding='SAME', name='pool1')
+    pool1 = tf.nn.max_pool(lrn1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='pool1')
+    print_size(pool1, name='pool1')
     
     # conv2
     with tf.variable_scope('conv2') as scope:
-        kernel = tf.Variable(tf.random_normal([5, 5, 20, 35], stddev=1e-4), name='weights')
-        conv = tf.nn.conv2d(pool1, kernel, [1, 1, 1, 1], padding='SAME') #use_cudnn_on_gpu=False,
-        biases = tf.Variable(tf.constant(0.1, dtype=tf.float32, shape=[35]), name='biases')
-        
-        bias = tf.nn.bias_add(conv, biases)
-        conv2 = tf.nn.relu(bias, name=scope.name)
+        kernel = tf.Variable(tf.random_normal([5, 5, 96, 256], stddev=1e-4), name='weights')
+        conv2 = tf.nn.conv2d(pool1, kernel, [1, 1, 1, 1], padding='SAME', name=scope.name)
         _activation_summary(conv2)
+    print_size(conv2, name='conv2')
     
-    # norm2
-    norm2 = tf.nn.lrn(conv2, name='lrn2')
-    #norm2 = tf.nn.lrn(conv2, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75, name='norm2')
+    # lrn2
+    lrn2 = tf.nn.lrn(conv2, name='lrn2')
+    print_size(lrn2, name='lrn2')
+
     # pool2
-    pool2 = tf.nn.max_pool(norm2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME', name='pool2')
-    
-    '''
-    # conv2
+    pool2 = tf.nn.max_pool(lrn2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='pool2')
+    print_size(pool2, name='pool2')
+
+    # conv3
     with tf.variable_scope('conv3') as scope:
-        kernel = tf.Variable(tf.random_normal([3, 3, 1, 192], stddev=1e-4), name='weights')
-        conv = tf.nn.conv2d(pool2, kernel, [1, 1, 1, 1], padding='SAME')
-        biases = tf.Variable(tf.constant(0.1, dtype=tf.float32, shape=[192]), name='biases')
-        
-        bias = tf.nn.bias_add(conv, biases)
-        conv3 = tf.nn.relu(bias, name=scope.name)
+        kernel = tf.Variable(tf.random_normal([3, 3, 256, 384], stddev=1e-4), name='weights')
+        conv3 = tf.nn.conv2d(pool2, kernel, [1, 1, 1, 1], padding='SAME', name=scope.name)
         _activation_summary(conv3)
-        '''
-        
-    
+    print_size(conv3, name='conv3')
+
     # conv4
     with tf.variable_scope('conv4') as scope:
-        kernel = tf.Variable(tf.random_normal([3, 3, 35, 50], stddev=1e-4), name='weights')
-        conv = tf.nn.conv2d(pool2, kernel, [1, 1, 1, 1], padding='SAME') #use_cudnn_on_gpu=False,
-        biases = tf.Variable(tf.constant(0.1, dtype=tf.float32, shape=[50]), name='biases')
-        
-        bias = tf.nn.bias_add(conv, biases)
-        conv4 = tf.nn.relu(bias, name=scope.name)
+        kernel = tf.Variable(tf.random_normal([3, 3, 384, 384], stddev=1e-4), name='weights')
+        conv4 = tf.nn.conv2d(conv3, kernel, [1, 1, 1, 1], padding='SAME', name=scope.name)
         _activation_summary(conv4)
-        
-        
-    
+    print_size(conv4, name='conv4')
+
     # conv5
     with tf.variable_scope('conv5') as scope:
-        kernel = tf.Variable(tf.random_normal([3, 3, 50, 75], stddev=1e-4), name='weights')
-        conv = tf.nn.conv2d(conv4, kernel, [1, 1, 1, 1], padding='SAME') #use_cudnn_on_gpu=False,
-        biases = tf.Variable(tf.constant(0.1, dtype=tf.float32, shape=[75]), name='biases')
-        
-        bias = tf.nn.bias_add(conv, biases)
-        conv5 = tf.nn.relu(bias, name=scope.name)
+        kernel = tf.Variable(tf.random_normal([3, 3, 384, 256], stddev=1e-4), name='weights')
+        conv5 = tf.nn.conv2d(conv4, kernel, [1, 1, 1, 1], padding='SAME', name=scope.name)
         _activation_summary(conv5)
-        
-        
-    pool3 = tf.nn.max_pool(conv5, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME', name='pool3')
-    
-    # local3
-    with tf.variable_scope('local1') as scope:
-        # Move everything into depth so we can perform a single matrix multiply.
-        dim = 1
-        for d in pool3.get_shape()[1:].as_list():
-            dim *= d
-        reshape = tf.reshape(pool3, [batch_size, dim])
-        
-        weights = _variable_with_weight_decay('weights', shape=[dim, 1024], stddev=0.04, wd=0.004)
-        biases = tf.Variable(tf.constant(0.1, dtype=tf.float32, shape=[1024]), name='biases')
-        local1 = tf.nn.relu_layer(reshape, weights, biases, name=scope.name)
-        #if train:
-        #    local1 = tf.nn.dropout(local1, 0.5)
-        _activation_summary(local1)
-    
-    # local4
-    with tf.variable_scope('local2') as scope:
-        weights = _variable_with_weight_decay('weights', shape=[1024, 1024], stddev=0.04, wd=0.004)        
-        biases = tf.Variable(tf.constant(0.1, dtype=tf.float32, shape=[1024]), name='biases')
-        
-        local2 = tf.nn.relu_layer(local1, weights, biases, name=scope.name)
-        #if train:
-        #    local2 = tf.nn.dropout(local2, 0.5)
-        _activation_summary(local2)
-    
+    print_size(conv5, name='conv5')
+
+    pool3 = tf.nn.max_pool(conv5, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='pool3')
+    print_size(pool3, name='pool3')
+
+    # Move everything into depth so we can perform a single matrix multiply.
+    image_size_after_pool3 = 6*6*256  # FIXME find number
+    image_as_vector = tf.reshape(pool3, [FLAGS.batch_size, image_size_after_pool3])
+
+    # full1
+    with tf.variable_scope('full1') as scope:
+        weights = _variable_with_weight_decay('weights', shape=[image_size_after_pool3, 4096], stddev=0.04, wd=0.004)
+        biases = tf.Variable(tf.constant(0.1, dtype=tf.float32, shape=[4096]), name='biases')
+
+        full1 = tf.nn.relu(tf.matmul(image_as_vector, weights) + biases, name=scope.name)
+        # if train:
+        #   local1 = tf.nn.dropout(full1, keep_prob)
+        _activation_summary(full1)
+    print_size(full1, name='full1')
+
+    # full2
+    with tf.variable_scope('full2') as scope:
+        weights = _variable_with_weight_decay('weights', shape=[4096, 4096], stddev=0.04, wd=0.004)
+        biases = tf.Variable(tf.constant(0.1, dtype=tf.float32, shape=[4096]), name='biases')
+
+        full2 = tf.nn.relu(tf.matmul(full1, weights) + biases, name=scope.name)
+        # if train:
+        #    local1 = tf.nn.dropout(full2, keep_prob)
+        _activation_summary(full2)
+    print_size(full2, name='full2')
+
     # softmax, i.e. softmax(WX + b)
-    with tf.variable_scope('softmax_linear') as scope:
-        weights = tf.Variable(tf.random_normal([1024, LSPGlobals.TotalLabels], stddev=1/1024.0), name='weights')
+    with tf.variable_scope('softmax') as scope:
+        weights = tf.Variable(tf.random_normal([4096, LSPGlobals.TotalLabels], stddev=1/4096.0), name='weights')
         biases = tf.Variable(tf.constant(0.0, dtype=tf.float32, shape=[LSPGlobals.TotalLabels]), name='biases')
-        softmax_linear = tf.nn.xw_plus_b(local2, weights, biases, name=scope.name)
-        #dropped_softmax_linear = tf.nn.dropout(softmax_linear, keepProb)
-        _activation_summary(softmax_linear)
+        softmax = tf.nn.xw_plus_b(full2, weights, biases, name=scope.name)
+        # dropped_softmax_linear = tf.nn.dropout(softmax_linear, keep_prob)
+        _activation_summary(softmax)
+    print_size(softmax, name='softmax')
     
-    return softmax_linear
-
-
+    return softmax
 
 
 def loss(logits, labels):
@@ -181,22 +170,23 @@ def loss(logits, labels):
     Returns:
       Loss tensor of type float.
     """
-    
-    labelValidity = tf.sign(labels, name='label_validity')
-    
-    minop = tf.sub(logits, labels, name='Diff_Op')
-    
-    absop = tf.abs(minop, name='Abs_Op')
-    
-    lossValues = tf.mul(labelValidity, absop, name='lossValues')
-    
-    loss_mean = tf.reduce_mean(lossValues, name='MeanPixelError')
-    
-    tf.add_to_collection('losses', loss_mean)
-    
-    return tf.add_n(tf.get_collection('losses'), name='total_loss'), loss_mean
-   
+    with tf.variable_scope('total_loss') as scope:
+        label_validity = tf.cast(tf.sign(labels, name='label_validity'), tf.float32)
 
+        labels_float = tf.cast(labels, tf.float32)
+
+        minus_op = tf.sub(logits, labels_float, name='Diff_Op')
+
+        abs_op = tf.abs(minus_op, name='Abs_Op')
+
+        loss_values = tf.mul(label_validity, abs_op, name='lossValues')
+
+        loss_mean = tf.reduce_mean(loss_values, name='MeanPixelError')
+
+        tf.add_to_collection('losses', loss_mean)
+
+        return tf.add_n(tf.get_collection('losses'), name=scope.name), loss_mean
+   
 
 def _add_loss_summaries(total_loss):
     """Add summaries for losses in DeepPose model.
@@ -214,17 +204,16 @@ def _add_loss_summaries(total_loss):
     losses = tf.get_collection('losses')
     loss_averages_op = loss_averages.apply(losses + [total_loss])
     
-    # Attach a scalar summmary to all individual losses and the total loss; do the
+    # Attach a scalar summary to all individual losses and the total loss; do the
     # same for the averaged version of the losses.
     for l in losses + [total_loss]:
         # Name each loss as '(raw)' and name the moving average version of the loss
         # as the original loss name.
-        tf.scalar_summary(l.op.name +' (raw)', l)
+        tf.scalar_summary(l.op.name + ' (raw)', l)
         tf.scalar_summary(l.op.name, loss_averages.average(l))
     
     return loss_averages_op
 
-  
 
 def train(total_loss, global_step):
     """Train DeepPose model.

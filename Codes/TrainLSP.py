@@ -7,91 +7,98 @@ from tensorflow.python.platform import gfile
 import time
 from datetime import datetime
 import LSPGlobals
-from LSPDrawLines import drawPoseOnImage as draw
+from LSPDrawLines import draw_pose_on_image as draw
+
+# Constants used for dealing with the files, matches convert_to_records.
+
+train_set_file = os.path.join(FLAGS.data_dir, 'train.tfrecords')
+validation_set_file = os.path.join(FLAGS.data_dir, 'validation.tfrecords')
+
 
 def main():
-    trainSetFileNames = os.path.join(FLAGS.data_dir, FLAGS.trainLabels_fn)
-    testSetFileNames = os.path.join(FLAGS.data_dir, FLAGS.testLabels_fn)
-    
-    if not (os.path.exists(trainSetFileNames) & os.path.exists(testSetFileNames)):
+
+    if not (os.path.exists(train_set_file) & os.path.exists(validation_set_file)):
         GetLSPData.main()
-        
-    #if gfile.Exists(FLAGS.train_dir):
-        #gfile.DeleteRecursively(FLAGS.train_dir)
+
     if not gfile.Exists(FLAGS.train_dir):
         gfile.MakeDirs(FLAGS.train_dir)
     
-    train(trainSetFileNames, testSetFileNames)
-    
-    
-def read_my_file_format(filename_queue):
-    image_reader = tf.WholeFileReader()
-    _, image_data = image_reader.read(filename_queue)
-    
-    # Convert from a string to a vector of uint8 that is record_bytes long.
-    record_bytes = tf.decode_raw(image_data, tf.uint8)
-    
-    # The first bytes represent the label, which we convert from uint8->float32.
-    labels_ = tf.cast(tf.slice(record_bytes, [0], [LSPGlobals.TotalLabels]), tf.float32)
-    
-    # The remaining bytes after the label represent the image, which we reshape
-    # from [depth * height * width] to [depth, height, width].
-    depth_major = tf.reshape(tf.slice(record_bytes, [LSPGlobals.TotalLabels], [LSPGlobals.TotalImageBytes]),
-                          [FLAGS.input_size, FLAGS.input_size, FLAGS.input_depth])
-    # Convert from [depth, height, width] to [height, width, depth].
-    #processed_example = tf.cast(tf.transpose(depth_major, [1, 2, 0]), tf.float32)
-    
+    train()
 
-    return depth_major, labels_
+
+def read_and_decode(filename_queue):
+    reader = tf.TFRecordReader()
+
+    _, serialized_example = reader.read(filename_queue)
+    # The serialized example is converted back to actual values.
+    # One needs to describe the format of the objects to be returned
+    features = tf.parse_single_example(
+        serialized_example,
+        features={
+            # We know the length of both fields. If not the
+            # tf.VarLenFeature could be used
+            'label': tf.FixedLenFeature([LSPGlobals.TotalLabels], tf.int64),
+            'image_raw': tf.FixedLenFeature([], tf.string)
+        })
+
+    # now return the converted data
+    image_as_vector = tf.decode_raw(features['image_raw'], tf.uint8)
+    image_as_vector.set_shape([LSPGlobals.TotalImageBytes])
+    image = tf.reshape(image_as_vector, [FLAGS.input_size, FLAGS.input_size, FLAGS.input_depth])
+    # Convert from [0, 255] -> [-0.5, 0.5] floats.
+    image_float = tf.cast(image, tf.float32) * (1. / 255) - 0.5
+
+    # Convert label from a scalar uint8 tensor to an int32 scalar.
+    label = tf.cast(features['label'], tf.int32)
+
+    return label, image_float
+
+    
+def inputs(is_train):
+    """Reads input data num_epochs times."""
+    filename = train_set_file if is_train else validation_set_file
+
+    with tf.name_scope('input'):
+        filename_queue = tf.train.string_input_producer(
+            [filename], num_epochs=None)
+
+        # get single examples
+        label, image = read_and_decode(filename_queue)
+
+        # groups examples into batches randomly
+        images_batch, labels_batch = tf.train.shuffle_batch(
+            [image, label], batch_size=FLAGS.batch_size,
+            capacity=3000,
+            min_after_dequeue=1000)
+
+        return images_batch, labels_batch
  
 
-def input_pipeline(argfilenames, batch_size, num_epochs=None):
-    filename_queue = tf.train.string_input_producer(argfilenames, shuffle=True)
-    
-    image_file, label = read_my_file_format(filename_queue)
-
-    min_after_dequeue = 200
-    capacity = min_after_dequeue + 3 * batch_size
-    
-    example_batch, label_batch = tf.train.shuffle_batch(
-        [image_file, label], batch_size=batch_size, capacity=capacity,
-        min_after_dequeue=min_after_dequeue)
-    
-    return example_batch, label_batch
-
-
-
-
-def train(trainSetFileNames, testSetFileNames):    
-    with open(trainSetFileNames) as f:
-        trainSet = f.read().splitlines()
-    with open(testSetFileNames) as f:
-        testSet = f.read().splitlines()
-        
+def train():
     with tf.Graph().as_default():
         # Global step variable for tracking processes.
         global_step = tf.Variable(0, trainable=False)
-        
-        # Train and Test Set feeds.
-        trainSet_batch, trainLabel_batch = input_pipeline(trainSet, FLAGS.batch_size)
-        testSet_batch, testLabel_batch = input_pipeline(testSet, FLAGS.batch_size)
+
+        # Prepare data batches
+        train_set_batch, train_label_batch = inputs(is_train=True)
+        validation_set_batch, validation_label_batch = inputs(is_train=False)
 
         # Placeholder to switch between train and test sets.
-        dataShape = [FLAGS.batch_size, FLAGS.input_size, FLAGS.input_size, FLAGS.input_depth]
-        labelShape = [FLAGS.batch_size, LSPGlobals.TotalLabels]
-        example_batch = tf.placeholder(tf.float32, shape=dataShape)
-        label_batch = tf.placeholder(tf.float32, shape=labelShape)
-        keepProb = tf.placeholder(tf.float32)
+        image_batch = tf.placeholder(tf.float32,
+                                     shape=[FLAGS.batch_size, FLAGS.input_size, FLAGS.input_size, FLAGS.input_depth])
+        label_batch = tf.placeholder(tf.int32,
+                                     shape=[FLAGS.batch_size, LSPGlobals.TotalLabels])
+        keep_probability = tf.placeholder(tf.float32)
         
         # Build a Graph that computes the logits predictions from the inference model.
-        logits = LSPModels.inference(example_batch, FLAGS.batch_size, keepProb=keepProb)
+        logits = LSPModels.inference(image_batch, keep_prob=keep_probability)
         
         # Calculate loss.
-        loss, meanPixelError = LSPModels.loss(logits, label_batch)
+        loss, mean_pixel_error = LSPModels.loss(logits, label_batch)
         
         # Build a Graph that trains the model with one batch of examples and updates the model parameters.
         train_op = LSPModels.train(loss, global_step)
-        
+
         # Create a saver.
         saver = tf.train.Saver(tf.all_variables())
         
@@ -108,55 +115,58 @@ def train(trainSetFileNames, testSetFileNames):
             
             sess.run(init)
             
-            stepinit = 0
-            ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
-            if ckpt and ckpt.model_checkpoint_path:
-                saver.restore(sess, ckpt.model_checkpoint_path)
-                stepinit = sess.run(global_step)
+            step_init = 0
+            checkpoint = tf.train.get_checkpoint_state(FLAGS.train_dir)
+            if checkpoint and checkpoint.model_checkpoint_path:
+                saver.restore(sess, checkpoint.model_checkpoint_path)
+                step_init = sess.run(global_step)
             else:
                 print("No checkpoint found...")
-                
-            
+
             summary_writer = tf.train.SummaryWriter(FLAGS.train_dir, graph=sess.graph)
             
-            for step in range(stepinit, FLAGS.max_steps):
+            for step in range(step_init, FLAGS.max_steps):
                 
                 start_time = time.time()
-                train_examplebatch, train_labelbatch = sess.run([trainSet_batch, trainLabel_batch])
-                feeddict = {example_batch: train_examplebatch, 
-                            label_batch: train_labelbatch,
-                            keepProb: 0.75}
-                _, PxErrValue = sess.run([train_op, meanPixelError], feed_dict=feeddict)
+                images, labels = sess.run([train_set_batch, train_label_batch])
+                feed_dict = {image_batch: images,
+                             label_batch: labels,
+                             keep_probability: 0.75}
+                _, pixel_error_value = sess.run([train_op, mean_pixel_error], feed_dict=feed_dict)
                 duration = time.time() - start_time
-                                
-                if step % 10 == 0:
-                    num_examples_per_step = FLAGS.batch_size
-                    examples_per_sec = num_examples_per_step / duration
-                    sec_per_batch = float(duration)
-                    
-                    format_str = ('%s: step %d, MeanPixelError = %.1f pixels (%.1f examples/sec; %.3f sec/batch)')
-                    print (format_str % (datetime.now(), step, PxErrValue,
-                                         examples_per_sec, sec_per_batch))
-                
-                if (step % 50 == 0) and (step != 0):
-                    summary_str = sess.run(summary_op, feed_dict=feeddict)
-                    summary_writer.add_summary(summary_str, step)
 
-                if (step % 100 == 0) and (step != 0):
-                    test_examplebatch, test_labelbatch = sess.run([testSet_batch, testLabel_batch])
-                    producedlabels, PxErrValue_Test = sess.run([logits,meanPixelError], 
-                                             feed_dict={example_batch: test_examplebatch, 
-                                                        label_batch: test_labelbatch,
-                                                        keepProb: 1})
-                    
-                    draw(test_examplebatch[0,...], producedlabels[0,...], FLAGS.drawing_dir, step/100)
-                    print('Test Set MeanPixelError: %.1f pixels' %PxErrValue_Test)
-                          
-                          
-                # Save the model checkpoint periodically.
-                if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
-                    checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
-                    saver.save(sess, checkpoint_path, global_step=step)
+                if not step == 0:
+                    # Print current results.
+                    if step % 10 == 0:
+                        num_examples_per_step = FLAGS.batch_size
+                        examples_per_sec = num_examples_per_step / duration
+                        sec_per_batch = float(duration)
+
+                        format_str = '%s: step %d, MeanPixelError = %.1f pixels (%.1f examples/sec; %.3f sec/batch)'
+                        print(format_str % (datetime.now(), step, pixel_error_value,
+                                            examples_per_sec, sec_per_batch))
+
+                    # Check results for validation set
+                    if (step % 200 == 0) and (step != 0):
+                        images, labels = sess.run([validation_set_batch, validation_label_batch])
+                        feed_dict = {image_batch: images,
+                                     label_batch: labels,
+                                     keep_probability: 1}
+                        produced_labels, pixel_error_value = sess.run([logits, mean_pixel_error], feed_dict=feed_dict)
+
+                        draw(images[0, ...], produced_labels[0, ...], FLAGS.drawing_dir, step/100)
+                        print('Test Set MeanPixelError: %.1f pixels' % pixel_error_value)
+
+                    # Add summary to summary writer
+                    if (step % 500 == 0) and (step != 0):
+                        summary_str = sess.run(summary_op, feed_dict=feed_dict)
+                        summary_writer.add_summary(summary_str, step)
+
+                    # Save the model checkpoint periodically.
+                    if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
+                        checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
+                        saver.save(sess, checkpoint_path, global_step=step)
+                        print('Model checkpoint saved for step %d' % step)
         
             coord.request_stop()
             coord.join(threads)
