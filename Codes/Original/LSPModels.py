@@ -29,7 +29,6 @@ def print_size(x, name=''):
         print(x.get_shape())
 
 
-
 def _variable_with_weight_decay(name, shape, stddev, wd):
     """Helper to create an initialized Variable with weight decay.
     
@@ -57,6 +56,7 @@ def inference(images, keep_prob=1):
     """    
     Args:
       images: Images returned from distorted_inputs() or inputs().
+      keep_prob: keep probability for dropout.
     
     Returns:
       Logits.
@@ -77,7 +77,7 @@ def inference(images, keep_prob=1):
     # lrn1
     lrn1 = tf.nn.lrn(conv1, name='lrn1')
     print_size(lrn1, name='lrn1')
-    
+
     # pool1
     pool1 = tf.nn.max_pool(lrn1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='VALID', name='pool1')
     print_size(pool1, name='pool1')
@@ -122,37 +122,34 @@ def inference(images, keep_prob=1):
     print_size(pool3, name='pool3')
 
     # Move everything into depth so we can perform a single matrix multiply.
-    image_size_after_pool3 = 6*6*256  # FIXME find number
+    image_size_after_pool3 = 6*6*256
     image_as_vector = tf.reshape(pool3, [FLAGS.batch_size, image_size_after_pool3])
 
     # full1
     with tf.variable_scope('full1') as scope:
-        weights = _variable_with_weight_decay('weights', shape=[image_size_after_pool3, 4096], stddev=0.04, wd=0.004)
+        weights = tf.Variable(tf.random_normal([image_size_after_pool3, 4096], stddev=0.04), name='weights')
         biases = tf.Variable(tf.constant(0.1, dtype=tf.float32, shape=[4096]), name='biases')
 
         full1 = tf.nn.relu(tf.matmul(image_as_vector, weights) + biases, name=scope.name)
-        # if train:
-        #   local1 = tf.nn.dropout(full1, keep_prob)
+        # full1_dropped = tf.nn.dropout(full1, keep_prob)
         _activation_summary(full1)
     print_size(full1, name='full1')
 
     # full2
     with tf.variable_scope('full2') as scope:
-        weights = _variable_with_weight_decay('weights', shape=[4096, 4096], stddev=0.04, wd=0.004)
+        weights = tf.Variable(tf.random_normal([4096, 4096], stddev=0.04), name='weights')
         biases = tf.Variable(tf.constant(0.1, dtype=tf.float32, shape=[4096]), name='biases')
 
         full2 = tf.nn.relu(tf.matmul(full1, weights) + biases, name=scope.name)
-        # if train:
-        #    local1 = tf.nn.dropout(full2, keep_prob)
+        # full2_dropped = tf.nn.dropout(full2, keep_prob)
         _activation_summary(full2)
     print_size(full2, name='full2')
 
     # softmax, i.e. softmax(WX + b)
     with tf.variable_scope('softmax') as scope:
-        weights = tf.Variable(tf.random_normal([4096, LSPGlobals.TotalLabels], stddev=1/4096.0), name='weights')
+        weights = tf.Variable(tf.random_normal([4096, LSPGlobals.TotalLabels], stddev=0.04), name='weights')
         biases = tf.Variable(tf.constant(0.0, dtype=tf.float32, shape=[LSPGlobals.TotalLabels]), name='biases')
         softmax = tf.nn.xw_plus_b(full2, weights, biases, name=scope.name)
-        # dropped_softmax_linear = tf.nn.dropout(softmax_linear, keep_prob)
         _activation_summary(softmax)
     print_size(softmax, name='softmax')
     
@@ -228,35 +225,37 @@ def train(total_loss, global_step):
     Returns:
       train_op: op for training.
     """
-    # Variables that affect learning rate.
-    num_batches_per_epoch = FLAGS.example_per_epoch / FLAGS.batch_size
-    decay_steps = int(num_batches_per_epoch * FLAGS.num_epochs_per_decay)
-    
-    # Decay the learning rate exponentially based on the number of steps.
-    lr = tf.train.exponential_decay(FLAGS.initial_learn_rate,
-                                    global_step,
-                                    decay_steps,
-                                    FLAGS.learn_decay_factor,
-                                    staircase=True)
-    tf.scalar_summary('learning_rate', lr)
-    
+
     # Generate moving averages of all losses and associated summaries.
     loss_averages_op = _add_loss_summaries(total_loss)
-    
+
+    var_list_all = tf.trainable_variables()
+    var_list1 = var_list_all[:5]
+    var_list2 = var_list_all[5:]
+
     # Compute gradients.
     with tf.control_dependencies([loss_averages_op]):
-        opt = tf.train.GradientDescentOptimizer(lr)
-        grads = opt.compute_gradients(total_loss)
-    
+        opt1 = tf.train.GradientDescentOptimizer(FLAGS.initial_learn_rate*10)
+        opt2 = tf.train.GradientDescentOptimizer(FLAGS.initial_learn_rate)
+        # grads = opt.compute_gradients(total_loss)
+        # grads = tf.gradients(total_loss, var_list1 + var_list2)
+        grads1 = opt1.compute_gradients(total_loss, var_list1)
+        grads2 = opt2.compute_gradients(total_loss, var_list2)
+        # grads1 = grads[:len(var_list1)]
+        # grads2 = grads[len(var_list1):]
+
     # Apply gradients.
-    apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
-    
+    # apply_gradient_op = opt.apply_gradients(grads, global_step=global_step)
+    apply_gradient_op1 = opt1.apply_gradients(grads1, global_step=global_step)
+    apply_gradient_op2 = opt2.apply_gradients(grads2, global_step=global_step)
+    apply_gradient_op = tf.group(apply_gradient_op1, apply_gradient_op2)
+
     # Add histograms for trainable variables.
     for var in tf.trainable_variables():
         tf.histogram_summary(var.op.name, var)
     
     # Add histograms for gradients.
-    for grad, var in grads:
+    for grad, var in grads1 + grads2:
         if grad is not None:
             tf.histogram_summary(var.op.name + '/gradients', grad)
     

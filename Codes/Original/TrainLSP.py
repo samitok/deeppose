@@ -131,13 +131,13 @@ def train():
                 images, labels = sess.run([train_set_batch, train_label_batch])
                 feed_dict = {image_batch: images,
                              label_batch: labels,
-                             keep_probability: 0.75}
+                             keep_probability: 0.6}
                 _, pixel_error_value = sess.run([train_op, mean_pixel_error], feed_dict=feed_dict)
                 duration = time.time() - start_time
 
                 if not step == 0:
                     # Print current results.
-                    if step % 10 == 0:
+                    if step % 50 == 0:
                         num_examples_per_step = FLAGS.batch_size
                         examples_per_sec = num_examples_per_step / duration
                         sec_per_batch = float(duration)
@@ -147,23 +147,23 @@ def train():
                                             examples_per_sec, sec_per_batch))
 
                     # Check results for validation set
-                    if (step % 200 == 0) and (step != 0):
+                    if step % 500 == 0:
                         images, labels = sess.run([validation_set_batch, validation_label_batch])
                         feed_dict = {image_batch: images,
                                      label_batch: labels,
                                      keep_probability: 1}
                         produced_labels, pixel_error_value = sess.run([logits, mean_pixel_error], feed_dict=feed_dict)
 
-                        draw(images[0, ...], produced_labels[0, ...], FLAGS.drawing_dir, step/100)
+                        draw(images[0, ...], produced_labels[0, ...], FLAGS.drawing_dir, step/500)
                         print('Test Set MeanPixelError: %.1f pixels' % pixel_error_value)
 
                     # Add summary to summary writer
-                    if (step % 500 == 0) and (step != 0):
+                    if step % 1000 == 0:
                         summary_str = sess.run(summary_op, feed_dict=feed_dict)
                         summary_writer.add_summary(summary_str, step)
 
                     # Save the model checkpoint periodically.
-                    if step % 1000 == 0 or (step + 1) == FLAGS.max_steps:
+                    if step % 5000 == 0 or (step + 1) == FLAGS.max_steps:
                         checkpoint_path = os.path.join(FLAGS.train_dir, 'model.ckpt')
                         saver.save(sess, checkpoint_path, global_step=step)
                         print('Model checkpoint saved for step %d' % step)
