@@ -1,3 +1,6 @@
+*Attention*: This project is in early development stage. So codes and performance are in a very primitive level.
+========
+
 DeepPose
 ========
 
