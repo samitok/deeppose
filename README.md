@@ -21,7 +21,7 @@ SECOND NOTE: This implementation was a project for my Pattern Recognition Course
 # Data preparation
 
 ```
-python GetLSPData.py
+python3 GetLSPData.py
 ```
 
 This script downloads Leeds Sports Pose Dataset (http://www.comp.leeds.ac.uk/mat4saj/lsp.html) and performs resizing as your Neural Network input size. Resized images and their labels are saved into binary files.
@@ -35,7 +35,7 @@ Dataset:
 Just run:
 
 ```
-python TrainLSP.py
+python3 TrainLSP.py
 ```
 
 
@@ -48,7 +48,7 @@ tensorboard --logdir=/path/to/log-directory   #path is '~/Desktop/LSP_data/Train
 
 # Evaluating the trained model
 ```
-python EvalDeepPose.py
+python3 EvalDeepPose.py
 ```
 This will get all images placed in '--input_dir' with extension '--input_type' will draw stick figures on images based on estimations from the model. Drawn images will be placed in '--output_dir'.
 
