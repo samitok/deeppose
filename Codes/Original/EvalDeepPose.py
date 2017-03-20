@@ -35,10 +35,10 @@ def evalDeepPose(imagelist):
         logits = LSPModels.inference(input_images, FLAGS.batch_size, keep_prob=1)
         
         # Create a saver.
-        saver = tf.train.Saver(tf.all_variables())
+        saver = tf.train.Saver(tf.global_variables())
         
         # Build an initialization operation to run below.
-        init = tf.initialize_all_variables()
+        init = tf.global_variables_initializer()
         
         with tf.Session() as sess:
             # Start populating the filename queue.

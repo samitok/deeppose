@@ -18,8 +18,8 @@ def _activation_summary(x):
     # Remove 'tower_[0-9]/' from the name in case this is a multi-GPU training
     # session. This helps the clarity of presentation on tensorboard.
     tensor_name = re.sub('%s_[0-9]*/' % LSPGlobals.TOWER_NAME, '', x.op.name)
-    tf.histogram_summary(tensor_name + '/activations', x)
-    tf.scalar_summary(tensor_name + '/sparsity', tf.nn.zero_fraction(x))
+    tf.summary.histogram(tensor_name + '/activations', x)
+    tf.summary.scalar(tensor_name + '/sparsity', tf.nn.zero_fraction(x))
 
 
 def print_size(x, name=''):
@@ -172,11 +172,11 @@ def loss(logits, labels):
 
         labels_float = tf.cast(labels, tf.float32)
 
-        minus_op = tf.sub(logits, labels_float, name='Diff_Op')
+        minus_op = tf.subtract(logits, labels_float, name='Diff_Op')
 
         abs_op = tf.abs(minus_op, name='Abs_Op')
 
-        loss_values = tf.mul(label_validity, abs_op, name='lossValues')
+        loss_values = tf.multiply(label_validity, abs_op, name='lossValues')
 
         loss_mean = tf.reduce_mean(loss_values, name='MeanPixelError')
 
@@ -206,8 +206,8 @@ def _add_loss_summaries(total_loss):
     for l in losses + [total_loss]:
         # Name each loss as '(raw)' and name the moving average version of the loss
         # as the original loss name.
-        tf.scalar_summary(l.op.name + ' (raw)', l)
-        tf.scalar_summary(l.op.name, loss_averages.average(l))
+        tf.summary.scalar(l.op.name + ' (raw)', l)
+        tf.summary.scalar(l.op.name, loss_averages.average(l))
     
     return loss_averages_op
 
@@ -252,12 +252,12 @@ def train(total_loss, global_step):
 
     # Add histograms for trainable variables.
     for var in tf.trainable_variables():
-        tf.histogram_summary(var.op.name, var)
+        tf.summary.histogram(var.op.name, var)
     
     # Add histograms for gradients.
     for grad, var in grads1 + grads2:
         if grad is not None:
-            tf.histogram_summary(var.op.name + '/gradients', grad)
+            tf.summary.histogram(var.op.name + '/gradients', grad)
     
     # Track the moving averages of all trainable variables.
     variable_averages = tf.train.ExponentialMovingAverage(FLAGS.moving_average_decay, global_step)

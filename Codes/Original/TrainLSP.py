@@ -100,13 +100,13 @@ def train():
         train_op = LSPModels.train(loss, global_step)
 
         # Create a saver.
-        saver = tf.train.Saver(tf.all_variables())
+        saver = tf.train.Saver(tf.global_variables())
         
         # Build the summary operation based on the TF collection of Summaries.
-        summary_op = tf.merge_all_summaries()
+        summary_op = tf.summary.merge_all()
         
         # Build an initialization operation to run below.
-        init = tf.initialize_all_variables()
+        init = tf.global_variables_initializer()
         
         with tf.Session() as sess:
             # Start populating the filename queue.
@@ -123,7 +123,7 @@ def train():
             else:
                 print("No checkpoint found...")
 
-            summary_writer = tf.train.SummaryWriter(FLAGS.train_dir, graph=sess.graph)
+            summary_writer = tf.summary.FileWriter(FLAGS.train_dir, graph=sess.graph)
             
             for step in range(step_init, FLAGS.max_steps):
                 
