@@ -24,7 +24,7 @@ SECOND NOTE: This implementation was a project for my Pattern Recognition Course
 python3 GetLSPData.py
 ```
 
-This script downloads Leeds Sports Pose Dataset (http://www.comp.leeds.ac.uk/mat4saj/lsp.html) and performs resizing as your Neural Network input size. Resized images and their labels are saved into binary files.
+This script downloads Leeds Sports Pose Dataset (http://sam.johnson.io/research/lsp.html) and performs resizing as your Neural Network input size. Resized images and their labels are saved into binary files.
 
 Dataset:
 

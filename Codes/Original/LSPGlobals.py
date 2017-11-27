@@ -3,7 +3,7 @@ import os.path as pt
 
 FLAGS = tf.app.flags.FLAGS
 
-tf.app.flags.DEFINE_string('download_url', 'http://www.comp.leeds.ac.uk/mat4saj/',  """LSP dataset url to download""")
+tf.app.flags.DEFINE_string('download_url', 'http://sam.johnson.io/research/',  """LSP dataset url to download""")
 tf.app.flags.DEFINE_string('comp_filename', 'lspet_dataset.zip', """Name of downloaded compressed file.""")
 tf.app.flags.DEFINE_string('extracted_file', 'joints.mat', """Name of extracted joints file""")
 
